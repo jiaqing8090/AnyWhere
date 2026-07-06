@@ -1,6 +1,10 @@
 package com.cxorz.anywhere.xposed;
 
+import android.app.ActivityManager;
 import android.content.ContentResolver;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.location.Location;
 import android.location.LocationManager;
 import android.net.wifi.WifiManager;
@@ -328,6 +332,125 @@ public class HideMockHook implements IXposedHookLoadPackage {
                     }
                 }
             });
+
+            // ================================================================
+            // 5. 钉钉专项检测绕过
+            // ================================================================
+
+            // 5.1 Settings.Secure.getInt("mock_location") — 钉钉常用此API
+            XposedHelpers.findAndHookMethod(Settings.Secure.class, "getInt",
+                    ContentResolver.class, String.class, int.class, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    if ("mock_location".equals(param.args[1])) param.setResult(0);
+                }
+            });
+            XposedHelpers.findAndHookMethod(Settings.Secure.class, "getInt",
+                    ContentResolver.class, String.class, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    if ("mock_location".equals(param.args[1])) param.setResult(0);
+                }
+            });
+
+            // 5.2 Settings.Secure.getStringForUser (Android 多用户)
+            try {
+                XposedHelpers.findAndHookMethod(Settings.Secure.class, "getStringForUser",
+                        ContentResolver.class, String.class, int.class, new XC_MethodHook() {
+                    @Override
+                    protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                        if ("mock_location".equals(param.args[1])) param.setResult("0");
+                    }
+                });
+            } catch (Throwable t) {}
+
+            // 5.3 隐藏 AnyWhere 自身包名（钉钉扫描已安装应用）
+            XC_MethodHook pkgFilter = new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    @SuppressWarnings("unchecked")
+                    List<ApplicationInfo> apps = (List<ApplicationInfo>) param.getResult();
+                    if (apps != null) {
+                        for (int i = apps.size() - 1; i >= 0; i--) {
+                            ApplicationInfo ai = apps.get(i);
+                            if (ai != null && "com.cxorz.anywhere".equals(ai.packageName)) {
+                                apps.remove(i);
+                            }
+                        }
+                    }
+                }
+            };
+            try {
+                XposedHelpers.findAndHookMethod(PackageManager.class, "getInstalledApplications",
+                        int.class, pkgFilter);
+            } catch (Throwable t) {}
+            try {
+                XposedHelpers.findAndHookMethod(PackageManager.class, "getInstalledPackages",
+                        int.class, pkgFilter);
+            } catch (Throwable t) {}
+            try {
+                XposedHelpers.findAndHookMethod(PackageManager.class, "getInstalledPackagesAsUser",
+                        int.class, int.class, pkgFilter);
+            } catch (Throwable t) {}
+
+            // 5.4 隐藏 AnyWhere 运行进程（钉钉扫描进程列表）
+            XC_MethodHook procFilter = new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    @SuppressWarnings("unchecked")
+                    List<ActivityManager.RunningAppProcessInfo> procs =
+                            (List<ActivityManager.RunningAppProcessInfo>) param.getResult();
+                    if (procs != null) {
+                        for (int i = procs.size() - 1; i >= 0; i--) {
+                            ActivityManager.RunningAppProcessInfo pi = procs.get(i);
+                            if (pi != null && pi.processName != null &&
+                                    pi.processName.contains("com.cxorz.anywhere")) {
+                                procs.remove(i);
+                            }
+                        }
+                    }
+                }
+            };
+            try {
+                XposedHelpers.findAndHookMethod(ActivityManager.class, "getRunningAppProcesses",
+                        procFilter);
+            } catch (Throwable t) {}
+            try {
+                XposedHelpers.findAndHookMethod(ActivityManager.class, "getRunningServices",
+                        int.class, new XC_MethodHook() {
+                    @Override
+                    protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                        @SuppressWarnings("unchecked")
+                        List<ActivityManager.RunningServiceInfo> services =
+                                (List<ActivityManager.RunningServiceInfo>) param.getResult();
+                        if (services != null) {
+                            for (int i = services.size() - 1; i >= 0; i--) {
+                                ActivityManager.RunningServiceInfo si = services.get(i);
+                                if (si != null && si.service != null &&
+                                        si.service.getPackageName() != null &&
+                                        si.service.getPackageName().contains("anywhere")) {
+                                    services.remove(i);
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (Throwable t) {}
+
+            // 5.5 钉钉检查 GPS Provider 是否可用 — 确保返回 true
+            XposedHelpers.findAndHookMethod(LocationManager.class, "isProviderEnabled",
+                    String.class, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    if (param.hasThrowable()) return;
+                    String p = (String) param.args[0];
+                    if ("gps".equals(p) || "network".equals(p) || "fused".equals(p)) {
+                        param.setResult(true);
+                    }
+                }
+            });
+
+            XposedBridge.log(TAG + ": All hooks installed for " + lpparam.packageName);
 
         } catch (Throwable t) {
             XposedBridge.log(t);
