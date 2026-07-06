@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
+    tools:context=".MainActivity">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <!-- Map Layer (Bottom) -->
+        <include
+            layout="@layout/main_map"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_marginTop="?attr/actionBarSize" />
+
+        <!-- Top Bar Layer -->
+        <com.google.android.material.appbar.AppBarLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@android:color/transparent"
+            app:elevation="0dp">
+
+            <com.google.android.material.appbar.MaterialToolbar
+                android:id="@+id/toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="?attr/actionBarSize"
+                android:background="?attr/colorSurface"
+                app:titleTextColor="?attr/colorOnSurface"
+                app:navigationIconTint="?attr/colorOnSurface"
+                android:theme="@style/ToolbarTheme"
+                app:title="@string/app_name"
+                app:popupTheme="@style/AppTheme.PopupOverlay" />
+
+        </com.google.android.material.appbar.AppBarLayout>
+
+        <!-- Search Results Layer (Overlay) -->
+        <LinearLayout
+            android:id="@+id/search_linear"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="?attr/colorSurface"
+            android:visibility="gone"
+            android:orientation="vertical"
+            android:layout_marginTop="?attr/actionBarSize"
+            android:elevation="12dp">
+            <ListView
+                android:id="@+id/search_list_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:divider="?attr/colorOutlineVariant"
+                android:dividerHeight="0.5dp"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/search_history_linear"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="?attr/colorSurface"
+            android:visibility="gone"
+            android:orientation="vertical"
+            android:layout_marginTop="?attr/actionBarSize"
+            android:elevation="12dp">
+            <ListView
+                android:id="@+id/search_history_list_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:divider="?attr/colorOutlineVariant"
+                android:dividerHeight="0.5dp"/>
+        </LinearLayout>
+
+        <!-- FAB Layer (Top) -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/faBtnStart"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_marginEnd="24dp"
+            android:layout_marginBottom="48dp"
+            android:contentDescription="@null"
+            style="@style/Widget.Material3.FloatingActionButton.Primary"
+            app:srcCompat="@drawable/ic_position" />
+
+    </FrameLayout>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
