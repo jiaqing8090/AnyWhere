@@ -21,9 +21,6 @@
 -keep class com.health.pedometer.assistant.MainActivity$* { *; }
 -keep class com.health.pedometer.assistant.joystick.JoyStick$* { *; }
 
-# ========== Shizuku ==========
--keep class dev.rikka.shizuku.** { *; }
-
 # ========== 保留 LocationManager 反射调用 ==========
 -keepclassmembers class android.location.LocationManager {
     public void addTestProvider(...);

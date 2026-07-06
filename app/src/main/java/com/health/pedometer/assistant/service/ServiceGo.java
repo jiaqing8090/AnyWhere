@@ -40,9 +40,6 @@ import com.health.pedometer.assistant.joystick.JoyStick;
 
 import java.util.Random;
 
-import dev.rikka.shizuku.Shizuku;
-import dev.rikka.shizuku.ShizukuProvider;
-
 @SuppressWarnings("deprecation")
 public class ServiceGo extends Service implements SensorEventListener {
     // 定位相关变量
@@ -86,10 +83,6 @@ public class ServiceGo extends Service implements SensorEventListener {
     // 随机噪点生成器
     private final Random mRandom = new Random();
 
-    // Shizuku 静默清理 mock_location 标记
-    private boolean mShizukuAvailable = false;
-    private static final String CMD_CLEAR_MOCK = "settings put secure mock_location 0";
-
     @Override
     public IBinder onBind(Intent intent) {
         return mBinder;
@@ -114,8 +107,6 @@ public class ServiceGo extends Service implements SensorEventListener {
         addTestProviderFused();
 
         initGoLocation();
-
-        initShizuku();
 
         initNotification();
 
@@ -190,34 +181,45 @@ public class ServiceGo extends Service implements SensorEventListener {
         // 不需要处理
     }
 
-    private void initShizuku() {
-        try {
-            ShizukuProvider.enable(ShizukuProvider.getAuthority());
-            Shizuku.addBinderReceivedListener(() -> {
-                mShizukuAvailable = true;
-                clearMockSetting();
-            });
-            Shizuku.addBinderDeadListener(() -> {
-                mShizukuAvailable = false;
-            });
-            if (Shizuku.pingBinder()) {
-                mShizukuAvailable = true;
-                clearMockSetting();
-            }
-        } catch (Throwable t) {
-            XLog.e("SERVICEGO: Shizuku init failed - " + t.getMessage());
-        }
-    }
+    /**
+     * 清除 mock_location 系统设置。
+     * 尝试多种方式，任一成功即可。
+     */
+    private void clearMockLocationSetting() {
+        new Thread(() -> {
+            try {
+                // 方式1: ContentResolver.call() — 直接操作 settings provider
+                android.os.Bundle args = new android.os.Bundle();
+                args.putString("value", "0");
+                android.os.Bundle result = getContentResolver().call(
+                    android.provider.Settings.Secure.CONTENT_URI,
+                    "PUT_secure",
+                    "mock_location",
+                    args
+                );
+                if (result != null) {
+                    XLog.d("SERVICEGO: mock_location cleared via ContentResolver");
+                    return;
+                }
+            } catch (Throwable t) {}
 
-    private void clearMockSetting() {
-        if (!mShizukuAvailable) return;
-        try {
-            // 通过 Shizuku 以 shell 权限执行，静默关闭 mock_location
-            Shizuku.newProcess(new String[]{"sh", "-c", CMD_CLEAR_MOCK}, null, null);
-            XLog.d("SERVICEGO: Shizuku cleared mock_location");
-        } catch (Throwable t) {
-            XLog.e("SERVICEGO: clearMockSetting failed - " + t.getMessage());
-        }
+            try {
+                // 方式2: ProcessBuilder 执行 settings 命令
+                Process p = new ProcessBuilder("settings", "put", "secure", "mock_location", "0")
+                    .redirectErrorStream(true)
+                    .start();
+                p.waitFor();
+                XLog.d("SERVICEGO: mock_location cleared via ProcessBuilder");
+            } catch (Throwable t) {}
+
+            try {
+                // 方式3: 反射调用 Settings.Secure.putString
+                java.lang.reflect.Method m = android.provider.Settings.Secure.class.getMethod(
+                    "putString", android.content.ContentResolver.class, String.class, String.class);
+                m.invoke(null, getContentResolver(), "mock_location", "0");
+                XLog.d("SERVICEGO: mock_location cleared via reflection");
+            } catch (Throwable t) {}
+        }).start();
     }
 
     private void initNotification() {
@@ -345,6 +347,8 @@ public class ServiceGo extends Service implements SensorEventListener {
             if (!mLocManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                 mLocManager.setTestProviderEnabled(LocationManager.GPS_PROVIDER, true);
             }
+            // 注册完成后立即尝试清除 mock_location 标记
+            clearMockLocationSetting();
         } catch (Exception e) {
             XLog.e("SERVICEGO: ERROR - addTestProviderGPS");
         }
