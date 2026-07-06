@@ -1,4 +1,4 @@
-package com.cxorz.anywhere;
+package com.health.pedometer.assistant;
 
 import org.junit.Test;
 

@@ -5,7 +5,7 @@ plugins {
 android {
     ndkVersion = '26.2.11394342'
     compileSdk = 34
-    namespace = 'com.cxorz.anywhere'
+    namespace = 'com.health.pedometer.assistant'
 
     signingConfigs {
         debug {
@@ -23,7 +23,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.cxorz.anywhere"
+        applicationId "com.health.pedometer.assistant"
         minSdkVersion 24
         //noinspection ExpiredTargetSdkVersion
         targetSdkVersion 34
@@ -103,9 +103,9 @@ android {
             if (outputFile != null && outputFile.name.endsWith('.apk')) {
                 def fileName
                 if (variant.buildType.name == 'release') {
-                    fileName = "AnyWhere_${defaultConfig.versionName}_arm64-v8a_release.apk"
+                    fileName = "HealthPedometer_${defaultConfig.versionName}_arm64-v8a_release.apk"
                 } else {
-                    fileName = "AnyWhere_${defaultConfig.versionName}_arm64-v8a_debug.apk"
+                    fileName = "HealthPedometer_${defaultConfig.versionName}_arm64-v8a_debug.apk"
                 }
                 outputFileName=fileName
             }
@@ -123,6 +123,8 @@ dependencies {
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     implementation 'com.elvishew:xlog:1.11.1'
+    implementation 'dev.rikka.shizuku:api:13.1.5'
+    implementation 'dev.rikka.shizuku:provider:13.1.5'
     implementation 'io.noties.markwon:core:4.6.2'
     implementation 'org.osmdroid:osmdroid-android:6.1.20'
     implementation 'com.github.MKergall:osmbonuspack:6.9.0'

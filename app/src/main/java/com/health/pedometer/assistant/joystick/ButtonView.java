@@ -1,4 +1,4 @@
-package com.cxorz.anywhere.joystick;
+package com.health.pedometer.assistant.joystick;
 
 import android.content.Context;
 import android.util.AttributeSet;
@@ -6,7 +6,7 @@ import android.view.LayoutInflater;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 
-import com.cxorz.anywhere.R;
+import com.health.pedometer.assistant.R;
 
 public class ButtonView extends LinearLayout {
     private ButtonViewClickListener mListener;

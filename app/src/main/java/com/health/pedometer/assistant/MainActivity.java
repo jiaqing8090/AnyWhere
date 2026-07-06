@@ -1,4 +1,4 @@
-package com.cxorz.anywhere;
+package com.health.pedometer.assistant;
 
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -49,11 +49,11 @@ import com.google.android.material.navigation.NavigationView;
 import com.google.android.material.snackbar.Snackbar;
 
 import org.osmdroid.views.overlay.TilesOverlay;
-import com.cxorz.anywhere.database.DataBaseHistoryLocation;
-import com.cxorz.anywhere.database.DataBaseHistorySearch;
-import com.cxorz.anywhere.service.ServiceGo;
-import com.cxorz.anywhere.utils.GoUtils;
-import com.cxorz.anywhere.utils.ShareUtils;
+import com.health.pedometer.assistant.database.DataBaseHistoryLocation;
+import com.health.pedometer.assistant.database.DataBaseHistorySearch;
+import com.health.pedometer.assistant.service.ServiceGo;
+import com.health.pedometer.assistant.utils.GoUtils;
+import com.health.pedometer.assistant.utils.ShareUtils;
 
 import org.osmdroid.api.IMapController;
 import org.osmdroid.config.Configuration;

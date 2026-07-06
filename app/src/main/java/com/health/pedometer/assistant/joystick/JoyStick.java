@@ -1,4 +1,4 @@
-package com.cxorz.anywhere.joystick;
+package com.health.pedometer.assistant.joystick;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
@@ -24,12 +24,12 @@ import android.widget.SearchView;
 
 import androidx.preference.PreferenceManager;
 
-import com.cxorz.anywhere.database.DataBaseHistoryLocation;
-import com.cxorz.anywhere.HistoryActivity;
-import com.cxorz.anywhere.MainActivity;
-import com.cxorz.anywhere.R;
-import com.cxorz.anywhere.utils.GoUtils;
-import com.cxorz.anywhere.utils.MapUtils;
+import com.health.pedometer.assistant.database.DataBaseHistoryLocation;
+import com.health.pedometer.assistant.HistoryActivity;
+import com.health.pedometer.assistant.MainActivity;
+import com.health.pedometer.assistant.R;
+import com.health.pedometer.assistant.utils.GoUtils;
+import com.health.pedometer.assistant.utils.MapUtils;
 
 import org.osmdroid.api.IMapController;
 import org.osmdroid.config.Configuration;

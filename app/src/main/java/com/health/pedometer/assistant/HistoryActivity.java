@@ -1,4 +1,4 @@
-package com.cxorz.anywhere;
+package com.health.pedometer.assistant;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -34,8 +34,8 @@ import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 
-import com.cxorz.anywhere.database.DataBaseHistoryLocation;
-import com.cxorz.anywhere.utils.GoUtils;
+import com.health.pedometer.assistant.database.DataBaseHistoryLocation;
+import com.health.pedometer.assistant.utils.GoUtils;
 
 public class HistoryActivity extends BaseActivity {
     public static final String KEY_ID = "KEY_ID";

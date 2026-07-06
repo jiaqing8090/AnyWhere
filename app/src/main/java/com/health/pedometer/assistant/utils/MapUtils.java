@@ -1,4 +1,4 @@
-package com.cxorz.anywhere.utils;
+package com.health.pedometer.assistant.utils;
 
 public class MapUtils {
 //    public final static String COORDINATE_TYPE_GCJ02 = "gcj02";

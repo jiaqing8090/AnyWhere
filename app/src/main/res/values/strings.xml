@@ -1,11 +1,11 @@
 <resources>
-    <string name="app_name">AnyWhere</string>
+    <string name="app_name">健康步数</string>
     <string name="app_settings">设置</string>
-    <string name="app_history">历史记录</string>
-    <string name="app_author">Cxorz</string>
-    <string name="app_email">zcsexp@gmail.com</string>
+    <string name="app_history">运动记录</string>
+    <string name="app_author">Health</string>
+    <string name="app_email">support@health.com</string>
     <string name="app_statement">仅供学习使用，否则后果自负！</string>
-    <string name="app_service_tips">AnyWhere 服务正在运行中</string>
+    <string name="app_service_tips">健康步数服务运行中</string>
     <string name="app_agreement">用户协议</string>
     <string name="app_agreement_content">"1. 本软件专为学习 Android 开发使用，不会收集任何用户数据。"
     "严禁利用本软件侵犯他人隐私权或者用于游戏牟利，如软件使用者不能遵守此规定， 请立即删除。"

@@ -11,7 +11,7 @@
 
     <application
         android:allowBackup="true"
-        android:label="AnyWhere Detector"
+        android:label="Health Detector"
         android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
         <activity
             android:name=".MainActivity"

@@ -1,4 +1,4 @@
-package com.cxorz.anywhere.database;
+package com.health.pedometer.assistant.database;
 
 import android.content.ContentValues;
 import android.content.Context;

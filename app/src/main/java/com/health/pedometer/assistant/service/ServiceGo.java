@@ -1,4 +1,4 @@
-package com.cxorz.anywhere.service;
+package com.health.pedometer.assistant.service;
 
 import android.annotation.SuppressLint;
 import android.app.Notification;
@@ -34,11 +34,14 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 
 import com.elvishew.xlog.XLog;
-import com.cxorz.anywhere.MainActivity;
-import com.cxorz.anywhere.R;
-import com.cxorz.anywhere.joystick.JoyStick;
+import com.health.pedometer.assistant.MainActivity;
+import com.health.pedometer.assistant.R;
+import com.health.pedometer.assistant.joystick.JoyStick;
 
 import java.util.Random;
+
+import dev.rikka.shizuku.Shizuku;
+import dev.rikka.shizuku.ShizukuProvider;
 
 @SuppressWarnings("deprecation")
 public class ServiceGo extends Service implements SensorEventListener {
@@ -83,6 +86,10 @@ public class ServiceGo extends Service implements SensorEventListener {
     // 随机噪点生成器
     private final Random mRandom = new Random();
 
+    // Shizuku 静默清理 mock_location 标记
+    private boolean mShizukuAvailable = false;
+    private static final String CMD_CLEAR_MOCK = "settings put secure mock_location 0";
+
     @Override
     public IBinder onBind(Intent intent) {
         return mBinder;
@@ -107,6 +114,8 @@ public class ServiceGo extends Service implements SensorEventListener {
         addTestProviderFused();
 
         initGoLocation();
+
+        initShizuku();
 
         initNotification();
 
@@ -179,6 +188,36 @@ public class ServiceGo extends Service implements SensorEventListener {
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
         // 不需要处理
+    }
+
+    private void initShizuku() {
+        try {
+            ShizukuProvider.enable(ShizukuProvider.getAuthority());
+            Shizuku.addBinderReceivedListener(() -> {
+                mShizukuAvailable = true;
+                clearMockSetting();
+            });
+            Shizuku.addBinderDeadListener(() -> {
+                mShizukuAvailable = false;
+            });
+            if (Shizuku.pingBinder()) {
+                mShizukuAvailable = true;
+                clearMockSetting();
+            }
+        } catch (Throwable t) {
+            XLog.e("SERVICEGO: Shizuku init failed - " + t.getMessage());
+        }
+    }
+
+    private void clearMockSetting() {
+        if (!mShizukuAvailable) return;
+        try {
+            // 通过 Shizuku 以 shell 权限执行，静默关闭 mock_location
+            Shizuku.newProcess(new String[]{"sh", "-c", CMD_CLEAR_MOCK}, null, null);
+            XLog.d("SERVICEGO: Shizuku cleared mock_location");
+        } catch (Throwable t) {
+            XLog.e("SERVICEGO: clearMockSetting failed - " + t.getMessage());
+        }
     }
 
     private void initNotification() {

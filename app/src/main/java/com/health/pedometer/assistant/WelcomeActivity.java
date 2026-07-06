@@ -1,4 +1,4 @@
-package com.cxorz.anywhere;
+package com.health.pedometer.assistant;
 
 import android.Manifest;
 import android.content.Intent;
@@ -10,7 +10,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.preference.PreferenceManager;
 
-import com.cxorz.anywhere.utils.GoUtils;
+import com.health.pedometer.assistant.utils.GoUtils;
 
 import java.util.ArrayList;
 

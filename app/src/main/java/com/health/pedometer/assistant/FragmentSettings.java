@@ -1,4 +1,4 @@
-package com.cxorz.anywhere;
+package com.health.pedometer.assistant;
 
 import android.os.Bundle;
 import android.text.InputType;
@@ -11,7 +11,7 @@ import androidx.preference.SwitchPreferenceCompat;
 
 
 import com.elvishew.xlog.XLog;
-import com.cxorz.anywhere.utils.GoUtils;
+import com.health.pedometer.assistant.utils.GoUtils;
 
 import java.util.Objects;
 

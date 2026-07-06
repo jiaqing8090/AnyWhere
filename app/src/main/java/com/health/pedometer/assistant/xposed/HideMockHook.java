@@ -1,4 +1,4 @@
-package com.cxorz.anywhere.xposed;
+package com.health.pedometer.assistant.xposed;
 
 import android.app.ActivityManager;
 import android.content.ContentResolver;
@@ -32,11 +32,11 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 public class HideMockHook implements IXposedHookLoadPackage {
 
-    private static final String TAG = "AnyWhereHook";
+    private static final String TAG = "HealthHook";
 
     // 白名单：排除自己和系统核心进程，避免误伤
     private static final List<String> WHITELIST_PACKAGES = Arrays.asList(
-            "com.cxorz.anywhere",
+            "com.health.pedometer.assistant",
             "android",
             "com.android.systemui",
             "com.android.phone"
@@ -364,7 +364,7 @@ public class HideMockHook implements IXposedHookLoadPackage {
                 });
             } catch (Throwable t) {}
 
-            // 5.3 隐藏 AnyWhere 自身包名（钉钉扫描已安装应用）
+            // 5.3 隐藏自身包名（钉钉扫描已安装应用）
             XC_MethodHook pkgFilter = new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) throws Throwable {
@@ -373,7 +373,7 @@ public class HideMockHook implements IXposedHookLoadPackage {
                     if (apps != null) {
                         for (int i = apps.size() - 1; i >= 0; i--) {
                             ApplicationInfo ai = apps.get(i);
-                            if (ai != null && "com.cxorz.anywhere".equals(ai.packageName)) {
+                            if (ai != null && "com.health.pedometer.assistant".equals(ai.packageName)) {
                                 apps.remove(i);
                             }
                         }
@@ -404,7 +404,7 @@ public class HideMockHook implements IXposedHookLoadPackage {
                         for (int i = procs.size() - 1; i >= 0; i--) {
                             ActivityManager.RunningAppProcessInfo pi = procs.get(i);
                             if (pi != null && pi.processName != null &&
-                                    pi.processName.contains("com.cxorz.anywhere")) {
+                                    pi.processName.contains("com.health.pedometer.assistant")) {
                                 procs.remove(i);
                             }
                         }
@@ -428,7 +428,7 @@ public class HideMockHook implements IXposedHookLoadPackage {
                                 ActivityManager.RunningServiceInfo si = services.get(i);
                                 if (si != null && si.service != null &&
                                         si.service.getPackageName() != null &&
-                                        si.service.getPackageName().contains("anywhere")) {
+                                        si.service.getPackageName().contains("pedometer")) {
                                     services.remove(i);
                                 }
                             }

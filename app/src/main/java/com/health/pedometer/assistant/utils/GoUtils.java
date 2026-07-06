@@ -1,4 +1,4 @@
-package com.cxorz.anywhere.utils;
+package com.health.pedometer.assistant.utils;
 
 import android.annotation.SuppressLint;
 import android.content.Context;

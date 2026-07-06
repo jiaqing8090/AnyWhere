@@ -1,4 +1,4 @@
-package com.cxorz.anywhere.joystick;
+package com.health.pedometer.assistant.joystick;
 
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -17,7 +17,7 @@ import android.view.View;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 
-import com.cxorz.anywhere.R;
+import com.health.pedometer.assistant.R;
 
 public class RockerView extends View {
     private Paint outerCirclePaint;

@@ -1,4 +1,4 @@
-package com.cxorz.anywhere;
+package com.health.pedometer.assistant;
 
 import android.app.Application;
 
@@ -18,7 +18,7 @@ import androidx.preference.PreferenceManager;
 import org.osmdroid.config.Configuration;
 
 public class GoApplication extends Application {
-    public static final String APP_NAME = "AnyWhere";
+    public static final String APP_NAME = "HealthPedometer";
     public static final String LOG_FILE_NAME = APP_NAME + ".log";
     private static final long MAX_TIME = 1000 * 60 * 60 * 24 * 3; // 3 days
 

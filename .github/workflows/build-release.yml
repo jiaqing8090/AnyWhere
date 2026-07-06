@@ -40,7 +40,7 @@ jobs:
       - name: Upload Artifacts (Workflow run)
         uses: actions/upload-artifact@v4
         with:
-          name: Anywhere-APKs
+          name: HealthPedometer-APKs
           path: artifacts/*.apk
 
       - name: Upload to Release
