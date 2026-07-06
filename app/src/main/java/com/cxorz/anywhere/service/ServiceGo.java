@@ -321,12 +321,15 @@ public class ServiceGo extends Service implements SensorEventListener {
 
             XLog.d("ServiceGo: setLocationGPS - RealBearing: " + mRealBearing);
 
+            // 高德地图是 GCJ-02 坐标系，GPS Mock 需要 WGS-84，做转换
+            double[] wgs = gcj02ToWgs84(mCurLng + noiseLng, mCurLat + noiseLat);
+
             Location loc = new Location(LocationManager.GPS_PROVIDER);
             loc.setAccuracy(Criteria.ACCURACY_FINE);    // 设定此位置的估计水平精度，以米为单位。
             loc.setAltitude(mCurAlt + noiseAlt);        // 设置高度
             loc.setBearing(mRealBearing);               // 使用真实传感器方向
-            loc.setLatitude(mCurLat + noiseLat);        // 纬度 + 噪点
-            loc.setLongitude(mCurLng + noiseLng);       // 经度 + 噪点
+            loc.setLatitude(wgs[1]);                    // 纬度 (WGS-84)
+            loc.setLongitude(wgs[0]);                   // 经度 (WGS-84)
             loc.setTime(System.currentTimeMillis());    // 本地时间
             loc.setSpeed((float) mSpeed);
             loc.setElapsedRealtimeNanos(SystemClock.elapsedRealtimeNanos());
@@ -380,12 +383,15 @@ public class ServiceGo extends Service implements SensorEventListener {
             double noiseLng = (mRandom.nextDouble() - 0.5) * 0.00004;
             double noiseAlt = (mRandom.nextDouble() - 0.5) * 1.0;
 
+            // 高德地图 GCJ-02 → WGS-84
+            double[] wgs = gcj02ToWgs84(mCurLng + noiseLng, mCurLat + noiseLat);
+
             Location loc = new Location(LocationManager.NETWORK_PROVIDER);
             loc.setAccuracy(Criteria.ACCURACY_COARSE);  // 设定此位置的估计水平精度，以米为单位。
             loc.setAltitude(mCurAlt + noiseAlt);
             loc.setBearing(mRealBearing);               // 使用真实传感器方向
-            loc.setLatitude(mCurLat + noiseLat);
-            loc.setLongitude(mCurLng + noiseLng);
+            loc.setLatitude(wgs[1]);
+            loc.setLongitude(wgs[0]);
             loc.setTime(System.currentTimeMillis());    // 本地时间
             loc.setSpeed((float) mSpeed);
             loc.setElapsedRealtimeNanos(SystemClock.elapsedRealtimeNanos());
@@ -434,12 +440,15 @@ public class ServiceGo extends Service implements SensorEventListener {
             double noiseLng = (mRandom.nextDouble() - 0.5) * 0.00004;
             double noiseAlt = (mRandom.nextDouble() - 0.5) * 1.0;
 
+            // 高德地图 GCJ-02 → WGS-84
+            double[] wgs = gcj02ToWgs84(mCurLng + noiseLng, mCurLat + noiseLat);
+
             Location loc = new Location("fused");
             loc.setAccuracy(Criteria.ACCURACY_FINE);
             loc.setAltitude(mCurAlt + noiseAlt);
             loc.setBearing(mRealBearing);
-            loc.setLatitude(mCurLat + noiseLat);
-            loc.setLongitude(mCurLng + noiseLng);
+            loc.setLatitude(wgs[1]);
+            loc.setLongitude(wgs[0]);
             loc.setTime(System.currentTimeMillis());
             loc.setSpeed((float) mSpeed);
             loc.setElapsedRealtimeNanos(SystemClock.elapsedRealtimeNanos());
@@ -478,6 +487,42 @@ public class ServiceGo extends Service implements SensorEventListener {
             mLocHandler.sendEmptyMessage(HANDLER_MSG_ID);
             mJoyStick.setCurrentPosition(mCurLng, mCurLat, mCurAlt);
         }
+    }
+
+    // ================================================================
+    // GCJ-02 (火星坐标/高德) → WGS-84 转换
+    // 高德地图瓦片是 GCJ-02，但 GPS Mock 需要 WGS-84
+    // 如果不转换，APP 会做 GCJ-02→GCJ-02 双重偏移，偏差可达数百米
+    // ================================================================
+    private static final double GCJ_A = 6378245.0;
+    private static final double GCJ_EE = 0.00669342162296594323;
+
+    private static double[] gcj02ToWgs84(double gcjLon, double gcjLat) {
+        double dLat = transformLat(gcjLon - 105.0, gcjLat - 35.0);
+        double dLon = transformLon(gcjLon - 105.0, gcjLat - 35.0);
+        double radLat = gcjLat / 180.0 * Math.PI;
+        double magic = Math.sin(radLat);
+        magic = 1 - GCJ_EE * magic * magic;
+        double sqrtMagic = Math.sqrt(magic);
+        dLat = (dLat * 180.0) / ((GCJ_A * (1 - GCJ_EE)) / (magic * sqrtMagic) * Math.PI);
+        dLon = (dLon * 180.0) / (GCJ_A / sqrtMagic * Math.cos(radLat) * Math.PI);
+        return new double[]{gcjLon - dLon, gcjLat - dLat};
+    }
+
+    private static double transformLat(double x, double y) {
+        double ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+        ret += (20.0 * Math.sin(6.0 * x * Math.PI) + 20.0 * Math.sin(2.0 * x * Math.PI)) * 2.0 / 3.0;
+        ret += (20.0 * Math.sin(y * Math.PI) + 40.0 * Math.sin(y / 3.0 * Math.PI)) * 2.0 / 3.0;
+        ret += (160.0 * Math.sin(y / 12.0 * Math.PI) + 320 * Math.sin(y * Math.PI / 30.0)) * 2.0 / 3.0;
+        return ret;
+    }
+
+    private static double transformLon(double x, double y) {
+        double ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+        ret += (20.0 * Math.sin(6.0 * x * Math.PI) + 20.0 * Math.sin(2.0 * x * Math.PI)) * 2.0 / 3.0;
+        ret += (20.0 * Math.sin(x * Math.PI) + 40.0 * Math.sin(x / 3.0 * Math.PI)) * 2.0 / 3.0;
+        ret += (150.0 * Math.sin(x / 12.0 * Math.PI) + 300.0 * Math.sin(x / 30.0 * Math.PI)) * 2.0 / 3.0;
+        return ret;
     }
 }
 
