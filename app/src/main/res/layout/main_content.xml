@@ -2,6 +2,7 @@
 <androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main_content"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fitsSystemWindows="true"
@@ -9,7 +10,8 @@
 
     <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:fitsSystemWindows="true">
 
         <!-- Map Layer (Bottom) -->
         <include
@@ -73,6 +75,14 @@
                 android:dividerHeight="0.5dp"/>
         </LinearLayout>
 
+        <!-- Bottom Safe Area Background (防止导航栏透出地图) -->
+        <View
+            android:id="@+id/bottom_safe_area"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_gravity="bottom"
+            android:background="?attr/colorSurface" />
+
         <!-- FAB Layer (Top) -->
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/faBtnStart"
@@ -80,7 +90,7 @@
             android:layout_height="wrap_content"
             android:layout_gravity="bottom|end"
             android:layout_marginEnd="24dp"
-            android:layout_marginBottom="48dp"
+            android:layout_marginBottom="24dp"
             android:contentDescription="@null"
             style="@style/Widget.Material3.FloatingActionButton.Primary"
             app:srcCompat="@drawable/ic_position" />

@@ -1,5 +1,6 @@
 package com.cxorz.anywhere.xposed;
 
+import android.app.ActivityThread;
 import android.content.ContentResolver;
 import android.location.Location;
 import android.location.LocationManager;
@@ -329,9 +330,212 @@ public class HideMockHook implements IXposedHookLoadPackage {
                 }
             });
 
+            // ================================================================
+            // 5. 腾讯地图 SDK Hook（微信/QQ 等腾讯系 APP 使用）
+            // 这些 APP 绕过系统 LocationManager，直接使用腾讯定位 SDK
+            // ================================================================
+            hookTencentLocationSDK(lpparam);
+
+            // ================================================================
+            // 6. 百度地图 SDK Hook（部分 APP 使用百度定位）
+            // ================================================================
+            hookBaiduLocationSDK(lpparam);
+
+            // ================================================================
+            // 7. 高德地图 SDK Hook（部分 APP 使用高德定位）
+            // ================================================================
+            hookAmapLocationSDK(lpparam);
+
         } catch (Throwable t) {
             XposedBridge.log(t);
         }
+    }
+
+    /**
+     * 腾讯地图 SDK Hook — 微信/QQ 等腾讯系 APP 内部使用 TencentLocationManager
+     * 绕过系统 LocationManager，直接读取 GPS 或使用腾讯自有网络定位。
+     */
+    private static void hookTencentLocationSDK(XC_LoadPackage.LoadPackageParam lpparam) {
+        try {
+            // 5.1 拦截 TencentLocationListener 回调，将坐标替换为系统 mock 值
+            Class<?> tencentLocListener = XposedHelpers.findClassIfExists(
+                    "com.tencent.map.geolocation.TencentLocationListener", lpparam.classLoader);
+            Class<?> tencentLoc = XposedHelpers.findClassIfExists(
+                    "com.tencent.map.geolocation.TencentLocation", lpparam.classLoader);
+            if (tencentLocListener == null || tencentLoc == null) return;
+
+            // 5.2 Hook requestLocationUpdates 的所有重载
+            Class<?> tencentLocManager = XposedHelpers.findClassIfExists(
+                    "com.tencent.map.geolocation.TencentLocationManager", lpparam.classLoader);
+            if (tencentLocManager != null) {
+                // Hook 所有 requestLocationUpdates 方法
+                XposedBridge.hookAllMethods(tencentLocManager, "requestLocationUpdates", new XC_MethodHook() {
+                    @Override
+                    protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                        // 查找 TencentLocationListener 参数并替换为代理
+                        for (int i = 0; i < param.args.length; i++) {
+                            if (param.args[i] != null && tencentLocListener.isInstance(param.args[i])) {
+                                final Object originalListener = param.args[i];
+                                param.args[i] = java.lang.reflect.Proxy.newProxyInstance(
+                                        lpparam.classLoader,
+                                        new Class[]{tencentLocListener},
+                                        (proxy, method, methodArgs) -> {
+                                            if ("onLocationChanged".equals(method.getName()) && methodArgs.length > 0) {
+                                                // 用系统 mock Location 替换腾讯定位结果
+                                                methodArgs[0] = patchTencentLocation(methodArgs[0], tencentLoc);
+                                            }
+                                            return method.invoke(originalListener, methodArgs);
+                                        });
+                                break;
+                            }
+                        }
+                    }
+                });
+
+                // 5.3 Hook requestSingleUpdate
+                XposedBridge.hookAllMethods(tencentLocManager, "requestSingleUpdate", new XC_MethodHook() {
+                    @Override
+                    protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                        for (int i = 0; i < param.args.length; i++) {
+                            if (param.args[i] != null && tencentLocListener.isInstance(param.args[i])) {
+                                final Object originalListener = param.args[i];
+                                param.args[i] = java.lang.reflect.Proxy.newProxyInstance(
+                                        lpparam.classLoader,
+                                        new Class[]{tencentLocListener},
+                                        (proxy, method, methodArgs) -> {
+                                            if ("onLocationChanged".equals(method.getName()) && methodArgs.length > 0) {
+                                                methodArgs[0] = patchTencentLocation(methodArgs[0], tencentLoc);
+                                            }
+                                            return method.invoke(originalListener, methodArgs);
+                                        });
+                                break;
+                            }
+                        }
+                    }
+                });
+
+                XposedBridge.log("AnyWhereHook: TencentLocationManager hooked for " + lpparam.packageName);
+            }
+        } catch (Throwable t) {
+            XposedBridge.log("AnyWhereHook: Tencent SDK hook failed - " + t.getMessage());
+        }
+    }
+
+    /**
+     * 百度地图 SDK Hook
+     */
+    private static void hookBaiduLocationSDK(XC_LoadPackage.LoadPackageParam lpparam) {
+        try {
+            Class<?> bdLocation = XposedHelpers.findClassIfExists(
+                    "com.baidu.location.BDLocation", lpparam.classLoader);
+            Class<?> bdLocationListener = XposedHelpers.findClassIfExists(
+                    "com.baidu.location.BDLocationListener", lpparam.classLoader);
+            Class<?> locationClient = XposedHelpers.findClassIfExists(
+                    "com.baidu.location.LocationClient", lpparam.classLoader);
+            
+            if (bdLocation == null || bdLocationListener == null || locationClient == null) return;
+
+            // Hook BDLocation.getLatitude/getLongitude
+            XposedHelpers.findAndHookMethod(bdLocation, "getLatitude", new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                    // 返回系统 mock 位置的纬度
+                    double[] mock = getMockLocation();
+                    if (mock != null) param.setResult(mock[0]);
+                }
+            });
+            XposedHelpers.findAndHookMethod(bdLocation, "getLongitude", new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                    double[] mock = getMockLocation();
+                    if (mock != null) param.setResult(mock[1]);
+                }
+            });
+
+            XposedBridge.log("AnyWhereHook: BaiduLocation SDK hooked for " + lpparam.packageName);
+        } catch (Throwable t) {
+            XposedBridge.log("AnyWhereHook: Baidu SDK hook failed - " + t.getMessage());
+        }
+    }
+
+    /**
+     * 高德地图 SDK Hook
+     */
+    private static void hookAmapLocationSDK(XC_LoadPackage.LoadPackageParam lpparam) {
+        try {
+            Class<?> amapLocation = XposedHelpers.findClassIfExists(
+                    "com.amap.api.location.AMapLocation", lpparam.classLoader);
+            if (amapLocation == null) return;
+
+            XposedHelpers.findAndHookMethod(amapLocation, "getLatitude", new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                    double[] mock = getMockLocation();
+                    if (mock != null) param.setResult(mock[0]);
+                }
+            });
+            XposedHelpers.findAndHookMethod(amapLocation, "getLongitude", new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                    double[] mock = getMockLocation();
+                    if (mock != null) param.setResult(mock[1]);
+                }
+            });
+
+            XposedBridge.log("AnyWhereHook: AMapLocation SDK hooked for " + lpparam.packageName);
+        } catch (Throwable t) {
+            XposedBridge.log("AnyWhereHook: AMap SDK hook failed - " + t.getMessage());
+        }
+    }
+
+    /**
+     * 修改腾讯定位结果对象，将坐标替换为系统 mock 值
+     */
+    private static Object patchTencentLocation(Object tencentLocation, Class<?> tencentLocClass) {
+        if (tencentLocation == null) return null;
+        try {
+            double[] mock = getMockLocation();
+            if (mock == null) return tencentLocation;
+
+            // 创建代理对象，拦截 getLatitude/getLongitude
+            return java.lang.reflect.Proxy.newProxyInstance(
+                    tencentLocClass.getClassLoader(),
+                    new Class[]{tencentLocClass},
+                    (proxy, method, args) -> {
+                        String name = method.getName();
+                        if ("getLatitude".equals(name)) return mock[0];
+                        if ("getLongitude".equals(name)) return mock[1];
+                        return method.invoke(tencentLocation, args);
+                    });
+        } catch (Throwable t) {
+            return tencentLocation;
+        }
+    }
+
+    /**
+     * 从系统 LocationManager 获取当前 mock 位置坐标
+     */
+    private static volatile double[] sCachedMockLocation;
+    private static volatile long sMockLocationCacheTime;
+
+    private static double[] getMockLocation() {
+        // 缓存 2 秒，避免频繁反射调用
+        long now = System.currentTimeMillis();
+        if (sCachedMockLocation != null && (now - sMockLocationCacheTime) < 2000) {
+            return sCachedMockLocation;
+        }
+        try {
+            android.location.LocationManager lm = (android.location.LocationManager)
+                    ActivityThread.currentApplication().getSystemService(Context.LOCATION_SERVICE);
+            if (lm == null) return null;
+            android.location.Location gps = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+            if (gps != null) {
+                sCachedMockLocation = new double[]{gps.getLatitude(), gps.getLongitude()};
+                sMockLocationCacheTime = now;
+                return sCachedMockLocation;
+            }
+        } catch (Throwable t) {}
+        return null;
     }
 
     /**
