@@ -61,7 +61,9 @@ import org.osmdroid.bonuspack.location.GeocoderNominatim;
 import org.osmdroid.config.Configuration;
 import org.osmdroid.events.MapEventsReceiver;
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
+import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase;
 import org.osmdroid.util.GeoPoint;
+import org.osmdroid.util.MapTileIndex;
 import org.osmdroid.views.MapView;
 import org.osmdroid.views.overlay.MapEventsOverlay;
 import org.osmdroid.views.overlay.Marker;
@@ -495,7 +497,26 @@ public class MainActivity extends BaseActivity implements SensorEventListener {
 
     private void initMap() {
         mMapView = findViewById(R.id.bdMapView);
-        mMapView.setTileSource(TileSourceFactory.MAPNIK);
+        
+        // 使用高德国内瓦片源，替代默认MAPNIK（tile.openstreetmap.org在国内无法访问）
+        OnlineTileSourceBase GAODE = new OnlineTileSourceBase(
+                "gaode", 3, 18, 256, "",
+                new String[] {
+                        "https://wprd01.is.autonavi.com/appmaptile/",
+                        "https://wprd02.is.autonavi.com/appmaptile/",
+                        "https://wprd03.is.autonavi.com/appmaptile/",
+                        "https://wprd04.is.autonavi.com/appmaptile/"
+                }) {
+            @Override
+            public String getTileURLString(long pMapTileIndex) {
+                // x = zoom, y = x, z = y 高德坐标体系
+                int zoom = MapTileIndex.getZoom(pMapTileIndex);
+                int x = MapTileIndex.getX(pMapTileIndex);
+                int y = MapTileIndex.getY(pMapTileIndex);
+                return String.format("https://wprd01.is.autonavi.com/appmaptile?x=%d&y=%d&z=%d&style=7", x, y, zoom);
+            }
+        };
+        mMapView.setTileSource(GAODE);
         mMapView.getZoomController().setVisibility(org.osmdroid.views.CustomZoomButtonsController.Visibility.NEVER);
         mMapView.setMultiTouchControls(true);
 
