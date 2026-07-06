@@ -14,7 +14,6 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
-import android.location.Address;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.provider.Settings;
@@ -57,7 +56,6 @@ import com.cxorz.anywhere.utils.GoUtils;
 import com.cxorz.anywhere.utils.ShareUtils;
 
 import org.osmdroid.api.IMapController;
-import org.osmdroid.bonuspack.location.GeocoderNominatim;
 import org.osmdroid.config.Configuration;
 import org.osmdroid.events.MapEventsReceiver;
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
@@ -73,12 +71,14 @@ import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import okhttp3.OkHttpClient;
 
 public class MainActivity extends BaseActivity implements SensorEventListener {
+    /* 高德地图 Web 服务 Key */
+    public static final String GAODE_KEY = "60e082f37add652e4ee202342680c439";
+    
     /* 对外 */
     public static final String LAT_MSG_ID = "LAT_VALUE";
     public static final String LNG_MSG_ID = "LNG_VALUE";
@@ -386,45 +386,64 @@ public class MainActivity extends BaseActivity implements SensorEventListener {
 
     private void performSearch(String query) {
         new Thread(() -> {
-            GeocoderNominatim geocoder = new GeocoderNominatim(Locale.getDefault(), getPackageName());
             try {
-                List<Address> addresses = geocoder.getFromLocationName(query, 10);
-                if (addresses != null && !addresses.isEmpty()) {
-                    List<Map<String, Object>> data = new ArrayList<>();
-                    for (Address addr : addresses) {
-                        Map<String, Object> poiItem = new HashMap<>();
-                        poiItem.put(POI_NAME, addr.getFeatureName());
-                        poiItem.put(POI_ADDRESS, addr.getAddressLine(0));
-                        poiItem.put(POI_LONGITUDE, "" + addr.getLongitude());
-                        poiItem.put(POI_LATITUDE, "" + addr.getLatitude());
-                        data.add(poiItem);
+                // 高德 POI 搜索
+                String url = "https://restapi.amap.com/v3/place/text?keywords=" +
+                        java.net.URLEncoder.encode(query, "UTF-8") +
+                        "&city=" + java.net.URLEncoder.encode(mCurrentCity != null ? mCurrentCity : "北京", "UTF-8") +
+                        "&offset=10&extensions=base&key=" + GAODE_KEY;
+                
+                okhttp3.Request req = new okhttp3.Request.Builder().url(url).build();
+                okhttp3.Response resp = mOkHttpClient.newCall(req).execute();
+                String body = resp.body() != null ? resp.body().string() : "";
+                
+                org.json.JSONObject json = new org.json.JSONObject(body);
+                int status = json.optInt("status", 0);
+                
+                if (status == 1) {
+                    org.json.JSONArray pois = json.optJSONArray("pois");
+                    if (pois != null && pois.length() > 0) {
+                        List<Map<String, Object>> data = new ArrayList<>();
+                        for (int i = 0; i < pois.length(); i++) {
+                            org.json.JSONObject poi = pois.getJSONObject(i);
+                            String[] loc = poi.optString("location", ",").split(",");
+                            Map<String, Object> poiItem = new HashMap<>();
+                            poiItem.put(POI_NAME, poi.optString("name", "未知"));
+                            poiItem.put(POI_ADDRESS, poi.optString("address", ""));
+                            poiItem.put(POI_LONGITUDE, loc.length > 0 ? loc[0] : "0");
+                            poiItem.put(POI_LATITUDE, loc.length > 1 ? loc[1] : "0");
+                            data.add(poiItem);
+                        }
+                        runOnUiThread(() -> {
+                            SimpleAdapter simAdapt = new SimpleAdapter(
+                                    MainActivity.this,
+                                    data,
+                                    R.layout.search_poi_item,
+                                    new String[] { POI_NAME, POI_ADDRESS, POI_LONGITUDE, POI_LATITUDE },
+                                    new int[] { R.id.poi_name, R.id.poi_address, R.id.poi_longitude, R.id.poi_latitude });
+                            mSearchList.setAdapter(simAdapt);
+                            mSearchLayout.setVisibility(View.VISIBLE);
+                            
+                            ContentValues contentValues = new ContentValues();
+                            contentValues.put(DataBaseHistorySearch.DB_COLUMN_KEY, query);
+                            contentValues.put(DataBaseHistorySearch.DB_COLUMN_DESCRIPTION, "搜索关键字");
+                            contentValues.put(DataBaseHistorySearch.DB_COLUMN_IS_LOCATION,
+                                    DataBaseHistorySearch.DB_SEARCH_TYPE_KEY);
+                            contentValues.put(DataBaseHistorySearch.DB_COLUMN_TIMESTAMP, System.currentTimeMillis() / 1000);
+                            DataBaseHistorySearch.saveHistorySearch(mSearchHistoryDB, contentValues);
+                        });
+                    } else {
+                        runOnUiThread(() -> GoUtils.DisplayToast(MainActivity.this,
+                                getResources().getString(R.string.app_search_null)));
                     }
-                    runOnUiThread(() -> {
-                        SimpleAdapter simAdapt = new SimpleAdapter(
-                                MainActivity.this,
-                                data,
-                                R.layout.search_poi_item,
-                                new String[] { POI_NAME, POI_ADDRESS, POI_LONGITUDE, POI_LATITUDE },
-                                new int[] { R.id.poi_name, R.id.poi_address, R.id.poi_longitude, R.id.poi_latitude });
-                        mSearchList.setAdapter(simAdapt);
-                        mSearchLayout.setVisibility(View.VISIBLE);
-
-                        ContentValues contentValues = new ContentValues();
-                        contentValues.put(DataBaseHistorySearch.DB_COLUMN_KEY, query);
-                        contentValues.put(DataBaseHistorySearch.DB_COLUMN_DESCRIPTION, "搜索关键字");
-                        contentValues.put(DataBaseHistorySearch.DB_COLUMN_IS_LOCATION,
-                                DataBaseHistorySearch.DB_SEARCH_TYPE_KEY);
-                        contentValues.put(DataBaseHistorySearch.DB_COLUMN_TIMESTAMP, System.currentTimeMillis() / 1000);
-                        DataBaseHistorySearch.saveHistorySearch(mSearchHistoryDB, contentValues);
-                    });
                 } else {
-                    runOnUiThread(() -> GoUtils.DisplayToast(MainActivity.this,
-                            getResources().getString(R.string.app_search_null)));
+                    runOnUiThread(() -> GoUtils.DisplayToast(MainActivity.this, 
+                            "搜索失败: " + json.optString("info", "未知错误")));
                 }
             } catch (Exception e) {
                 runOnUiThread(() -> {
                     GoUtils.DisplayToast(MainActivity.this, getResources().getString(R.string.app_error_search));
-                    XLog.d(getResources().getString(R.string.app_error_search));
+                    XLog.d("Search error: " + e.getMessage());
                 });
             }
         }).start();
@@ -561,51 +580,61 @@ public class MainActivity extends BaseActivity implements SensorEventListener {
 
     private void performReverseGeocoding(GeoPoint p) {
         new Thread(() -> {
-            GeocoderNominatim geocoder = new GeocoderNominatim(Locale.getDefault(), getPackageName());
             try {
-                List<Address> addresses = geocoder.getFromLocation(p.getLatitude(), p.getLongitude(), 1);
-                if (addresses != null && !addresses.isEmpty()) {
-                    Address addr = addresses.get(0);
-                    mMarkName = addr.getAddressLine(0);
-
-                    runOnUiThread(() -> {
-                        View poiView = View.inflate(MainActivity.this, R.layout.location_poi_info, null);
-                        TextView poiAddress = poiView.findViewById(R.id.poi_address);
-                        TextView poiLongitude = poiView.findViewById(R.id.poi_longitude);
-                        TextView poiLatitude = poiView.findViewById(R.id.poi_latitude);
-
-                        poiAddress.setText(mMarkName);
-                        poiLongitude.setText(String.valueOf(p.getLongitude()));
-                        poiLatitude.setText(String.valueOf(p.getLatitude()));
-
-                        ImageButton ibSave = poiView.findViewById(R.id.poi_save);
-                        ibSave.setOnClickListener(v -> {
-                            recordCurrentLocation(mMarkLatLngMap.getLongitude(), mMarkLatLngMap.getLatitude());
-                            GoUtils.DisplayToast(MainActivity.this,
-                                    getResources().getString(R.string.app_location_save));
-                        });
-                        ImageButton ibCopy = poiView.findViewById(R.id.poi_copy);
-                        ibCopy.setOnClickListener(v -> {
-                            ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-                            ClipData mClipData = ClipData.newPlainText("Label", mMarkLatLngMap.toString());
-                            cm.setPrimaryClip(mClipData);
-                            GoUtils.DisplayToast(MainActivity.this,
-                                    getResources().getString(R.string.app_location_copy));
-                        });
-                        ImageButton ibShare = poiView.findViewById(R.id.poi_share);
-                        ibShare.setOnClickListener(v -> ShareUtils.shareText(MainActivity.this, "分享位置",
-                                poiLongitude.getText() + "," + poiLatitude.getText()));
-                        ImageButton ibFly = poiView.findViewById(R.id.poi_fly);
-                        ibFly.setOnClickListener(this::doGoLocation);
-
-                        if (mCurrentMarker != null) {
-                            mCurrentMarker.setTitle(mMarkName);
-                            mCurrentMarker.setSubDescription(
-                                    String.valueOf(p.getLatitude()) + "," + String.valueOf(p.getLongitude()));
-                            mCurrentMarker.showInfoWindow();
-                        }
-                    });
+                // 高德逆地理编码
+                String url = "https://restapi.amap.com/v3/geocode/regeo?location=" +
+                        p.getLongitude() + "," + p.getLatitude() +
+                        "&extensions=base&key=" + GAODE_KEY;
+                
+                okhttp3.Request req = new okhttp3.Request.Builder().url(url).build();
+                okhttp3.Response resp = mOkHttpClient.newCall(req).execute();
+                String body = resp.body() != null ? resp.body().string() : "";
+                
+                org.json.JSONObject json = new org.json.JSONObject(body);
+                org.json.JSONObject regeo = json.optJSONObject("regeocode");
+                if (regeo != null) {
+                    mMarkName = regeo.optString("formatted_address", p.getLatitude() + "," + p.getLongitude());
+                } else {
+                    mMarkName = p.getLatitude() + "," + p.getLongitude();
                 }
+                
+                runOnUiThread(() -> {
+                    View poiView = View.inflate(MainActivity.this, R.layout.location_poi_info, null);
+                    TextView poiAddress = poiView.findViewById(R.id.poi_address);
+                    TextView poiLongitude = poiView.findViewById(R.id.poi_longitude);
+                    TextView poiLatitude = poiView.findViewById(R.id.poi_latitude);
+                    
+                    poiAddress.setText(mMarkName);
+                    poiLongitude.setText(String.valueOf(p.getLongitude()));
+                    poiLatitude.setText(String.valueOf(p.getLatitude()));
+                    
+                    ImageButton ibSave = poiView.findViewById(R.id.poi_save);
+                    ibSave.setOnClickListener(v -> {
+                        recordCurrentLocation(mMarkLatLngMap.getLongitude(), mMarkLatLngMap.getLatitude());
+                        GoUtils.DisplayToast(MainActivity.this,
+                                getResources().getString(R.string.app_location_save));
+                    });
+                    ImageButton ibCopy = poiView.findViewById(R.id.poi_copy);
+                    ibCopy.setOnClickListener(v -> {
+                        ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                        ClipData mClipData = ClipData.newPlainText("Label", mMarkLatLngMap.toString());
+                        cm.setPrimaryClip(mClipData);
+                        GoUtils.DisplayToast(MainActivity.this,
+                                getResources().getString(R.string.app_location_copy));
+                    });
+                    ImageButton ibShare = poiView.findViewById(R.id.poi_share);
+                    ibShare.setOnClickListener(v -> ShareUtils.shareText(MainActivity.this, "分享位置",
+                            poiLongitude.getText() + "," + poiLatitude.getText()));
+                    ImageButton ibFly = poiView.findViewById(R.id.poi_fly);
+                    ibFly.setOnClickListener(this::doGoLocation);
+                    
+                    if (mCurrentMarker != null) {
+                        mCurrentMarker.setTitle(mMarkName);
+                        mCurrentMarker.setSubDescription(
+                                String.valueOf(p.getLatitude()) + "," + String.valueOf(p.getLongitude()));
+                        mCurrentMarker.showInfoWindow();
+                    }
+                });
             } catch (Exception e) {
                 XLog.e("Reverse Geocoding failed", e);
             }
@@ -960,12 +989,19 @@ public class MainActivity extends BaseActivity implements SensorEventListener {
         DataBaseHistoryLocation.saveHistoryLocation(mLocationHistoryDB, contentValues);
 
         new Thread(() -> {
-            GeocoderNominatim geocoder = new GeocoderNominatim(Locale.getDefault(), getPackageName());
             try {
-                List<Address> addresses = geocoder.getFromLocation(lat, lng, 1);
                 String addressStr = mMarkName != null ? mMarkName : "Unknown Location";
-                if (addresses != null && !addresses.isEmpty()) {
-                    addressStr = addresses.get(0).getAddressLine(0);
+                // 高德逆地理编码
+                String url = "https://restapi.amap.com/v3/geocode/regeo?location=" +
+                        lng + "," + lat + "&extensions=base&key=" + GAODE_KEY;
+                okhttp3.Request req = new okhttp3.Request.Builder().url(url).build();
+                okhttp3.Response resp = mOkHttpClient.newCall(req).execute();
+                String body = resp.body() != null ? resp.body().string() : "";
+                org.json.JSONObject json = new org.json.JSONObject(body);
+                org.json.JSONObject regeo = json.optJSONObject("regeocode");
+                if (regeo != null) {
+                    String fmtAddr = regeo.optString("formatted_address", "");
+                    if (!fmtAddr.isEmpty()) addressStr = fmtAddr;
                 }
 
                 ContentValues updateValues = new ContentValues();

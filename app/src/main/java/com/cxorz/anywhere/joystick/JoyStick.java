@@ -6,7 +6,6 @@ import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.graphics.PixelFormat;
-import android.location.Address;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -33,7 +32,6 @@ import com.cxorz.anywhere.utils.GoUtils;
 import com.cxorz.anywhere.utils.MapUtils;
 
 import org.osmdroid.api.IMapController;
-import org.osmdroid.bonuspack.location.GeocoderNominatim;
 import org.osmdroid.config.Configuration;
 import org.osmdroid.events.MapEventsReceiver;
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
@@ -52,8 +50,9 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+
+import okhttp3.OkHttpClient;
 
 public class JoyStick extends View {
     private static final int DivGo = 1000;    /* 移动的时间间隔，单位 ms */
@@ -85,6 +84,7 @@ public class JoyStick extends View {
     private double disLng = 0;
     private double disLat = 0;
     private final SharedPreferences sharedPreferences;
+    private final OkHttpClient mOkHttpClient;
     /* 历史记录悬浮窗相关 */
     private FrameLayout mHistoryLayout;
     private final List<Map<String, Object>> mAllRecord = new ArrayList<> ();
@@ -108,6 +108,7 @@ public class JoyStick extends View {
         this.mContext = context;
 
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(mContext);
+        mOkHttpClient = new OkHttpClient();
 
         initWindowManager();
 
@@ -127,6 +128,7 @@ public class JoyStick extends View {
         this.mContext = context;
 
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(mContext);
+        mOkHttpClient = new OkHttpClient();
 
         initWindowManager();
 
@@ -552,29 +554,44 @@ public class JoyStick extends View {
     
     private void performSearch(String query) {
         new Thread(() -> {
-            GeocoderNominatim geocoder = new GeocoderNominatim(Locale.getDefault(), mContext.getPackageName());
             try {
-                List<Address> addresses = geocoder.getFromLocationName(query, 10);
-                if (addresses != null && !addresses.isEmpty()) {
-                    List<Map<String, Object>> data = new ArrayList<>();
-                    for (Address addr : addresses) {
-                        Map<String, Object> poiItem = new HashMap<>();
-                        poiItem.put(MainActivity.POI_NAME, addr.getFeatureName());
-                        poiItem.put(MainActivity.POI_ADDRESS, addr.getAddressLine(0));
-                        poiItem.put(MainActivity.POI_LONGITUDE, "" + addr.getLongitude());
-                        poiItem.put(MainActivity.POI_LATITUDE, "" + addr.getLatitude());
-                        data.add(poiItem);
+                // 高德 POI 搜索
+                String url = "https://restapi.amap.com/v3/place/text?keywords=" +
+                        java.net.URLEncoder.encode(query, "UTF-8") +
+                        "&city=北京&offset=10&extensions=base&key=" + MainActivity.GAODE_KEY;
+                
+                okhttp3.Request req = new okhttp3.Request.Builder().url(url).build();
+                okhttp3.Response resp = mOkHttpClient.newCall(req).execute();
+                String body = resp.body() != null ? resp.body().string() : "";
+                
+                org.json.JSONObject json = new org.json.JSONObject(body);
+                int status = json.optInt("status", 0);
+                
+                if (status == 1) {
+                    org.json.JSONArray pois = json.optJSONArray("pois");
+                    if (pois != null && pois.length() > 0) {
+                        List<Map<String, Object>> data = new ArrayList<>();
+                        for (int i = 0; i < pois.length(); i++) {
+                            org.json.JSONObject poi = pois.getJSONObject(i);
+                            String[] loc = poi.optString("location", ",").split(",");
+                            Map<String, Object> poiItem = new HashMap<>();
+                            poiItem.put(MainActivity.POI_NAME, poi.optString("name", "未知"));
+                            poiItem.put(MainActivity.POI_ADDRESS, poi.optString("address", ""));
+                            poiItem.put(MainActivity.POI_LONGITUDE, loc.length > 0 ? loc[0] : "0");
+                            poiItem.put(MainActivity.POI_LATITUDE, loc.length > 1 ? loc[1] : "0");
+                            data.add(poiItem);
+                        }
+                        mJoystickLayout.post(() -> {
+                             SimpleAdapter simAdapt = new SimpleAdapter(
+                                    mContext,
+                                    data,
+                                    R.layout.search_poi_item,
+                                    new String[] {MainActivity.POI_NAME, MainActivity.POI_ADDRESS, MainActivity.POI_LONGITUDE, MainActivity.POI_LATITUDE},
+                                    new int[] {R.id.poi_name, R.id.poi_address, R.id.poi_longitude, R.id.poi_latitude});
+                            mSearchList.setAdapter(simAdapt);
+                            mSearchLayout.setVisibility(View.VISIBLE);
+                        });
                     }
-                    mJoystickLayout.post(() -> {
-                         SimpleAdapter simAdapt = new SimpleAdapter(
-                                mContext,
-                                data,
-                                R.layout.search_poi_item,
-                                new String[] {MainActivity.POI_NAME, MainActivity.POI_ADDRESS, MainActivity.POI_LONGITUDE, MainActivity.POI_LATITUDE},
-                                new int[] {R.id.poi_name, R.id.poi_address, R.id.poi_longitude, R.id.poi_latitude});
-                        mSearchList.setAdapter(simAdapt);
-                        mSearchLayout.setVisibility(View.VISIBLE);
-                    });
                 }
             } catch (Exception e) {
                 // Log
