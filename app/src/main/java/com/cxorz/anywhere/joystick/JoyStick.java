@@ -148,6 +148,7 @@ public class JoyStick extends View {
         this.mContext = context;
 
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(mContext);
+        mOkHttpClient = new OkHttpClient();
 
         initWindowManager();
 
