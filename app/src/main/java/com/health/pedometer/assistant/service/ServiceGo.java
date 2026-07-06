@@ -205,7 +205,7 @@ public class ServiceGo extends Service implements SensorEventListener {
 
             try {
                 // 方式2: ProcessBuilder 执行 settings 命令
-                Process p = new ProcessBuilder("settings", "put", "secure", "mock_location", "0")
+                java.lang.Process p = new ProcessBuilder("settings", "put", "secure", "mock_location", "0")
                     .redirectErrorStream(true)
                     .start();
                 p.waitFor();
