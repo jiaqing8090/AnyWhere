@@ -10,6 +10,10 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationManager;
@@ -25,11 +29,6 @@ import android.os.Process;
 import android.os.SystemClock;
 import android.util.Log;
 
-import android.hardware.Sensor;
-import android.hardware.SensorEvent;
-import android.hardware.SensorEventListener;
-import android.hardware.SensorManager;
-
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
@@ -44,7 +43,6 @@ import java.util.Random;
 public class ServiceGo extends Service implements SensorEventListener {
     private static final String TAG = "ServiceGo";
 
-    // 定位相关变量
     public static final double DEFAULT_LAT = 36.667662;
     public static final double DEFAULT_LNG = 117.027707;
     public static final double DEFAULT_ALT = 5.0D;
@@ -60,19 +58,14 @@ public class ServiceGo extends Service implements SensorEventListener {
     private HandlerThread mLocHandlerThread;
     private Handler mLocHandler;
     private boolean isStop = false;
-    // 通知栏消息
     private static final int SERVICE_GO_NOTE_ID = 1;
     private static final String SERVICE_GO_NOTE_ACTION_JOYSTICK_SHOW = "ShowJoyStick";
     private static final String SERVICE_GO_NOTE_ACTION_JOYSTICK_HIDE = "HideJoyStick";
     private static final String SERVICE_GO_NOTE_CHANNEL_ID = "SERVICE_GO_NOTE";
     private static final String SERVICE_GO_NOTE_CHANNEL_NAME = "SERVICE_GO_NOTE";
     private NoteActionReceiver mActReceiver;
-    // 摇杆相关
     private JoyStick mJoyStick;
-
     private final ServiceGoBinder mBinder = new ServiceGoBinder();
-
-    // 传感器相关 (真实朝向)
     private SensorManager mSensorManager;
     private Sensor mSensorAcc;
     private Sensor mSensorMag;
@@ -81,14 +74,7 @@ public class ServiceGo extends Service implements SensorEventListener {
     private final float[] mR = new float[9];
     private final float[] mDirectionValues = new float[3];
     private float mRealBearing = 0.0f;
-
-    // 随机噪点生成器
     private final Random mRandom = new Random();
-
-    // 检测绕过：定期清 mock_location 标记
-    private static final long MOCK_CLEAR_INTERVAL = 30000; // 30秒
-    private Handler mMainHandler;
-    private Runnable mMockClearTask;
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -98,56 +84,18 @@ public class ServiceGo extends Service implements SensorEventListener {
     @Override
     public void onCreate() {
         super.onCreate();
-
         mLocManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
         mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-        mMainHandler = new Handler();
-
         initSensors();
-
         removeTestProviderNetwork();
         addTestProviderNetwork();
-
         removeTestProviderGPS();
         addTestProviderGPS();
-
         removeTestProviderFused();
         addTestProviderFused();
-
         initGoLocation();
-
         initNotification();
-
         initJoyStick();
-
-        // 延迟 5 秒后开始定期清 mock_location（等 provider 完全就绪）
-        startMockClearLoop();
-    }
-
-    private void startMockClearLoop() {
-        mMockClearTask = new Runnable() {
-            @Override
-            public void run() {
-                clearMockLocation();
-                if (!isStop && mMainHandler != null) {
-                    mMainHandler.postDelayed(this, MOCK_CLEAR_INTERVAL);
-                }
-            }
-        };
-        mMainHandler.postDelayed(mMockClearTask, 5000);
-    }
-
-    private void clearMockLocation() {
-        try {
-            new Thread(() -> {
-                try {
-                    java.lang.Process p = new ProcessBuilder(
-                            "settings", "put", "secure", "mock_location", "0")
-                            .redirectErrorStream(true).start();
-                    p.waitFor();
-                } catch (Throwable ignored) {}
-            }).start();
-        } catch (Throwable ignored) {}
     }
 
     private void initSensors() {
@@ -181,24 +129,15 @@ public class ServiceGo extends Service implements SensorEventListener {
         isStop = true;
         mLocHandler.removeMessages(HANDLER_MSG_ID);
         mLocHandlerThread.quit();
-
-        if (mMainHandler != null && mMockClearTask != null) {
-            mMainHandler.removeCallbacks(mMockClearTask);
-        }
-
         if (mSensorManager != null) {
             mSensorManager.unregisterListener(this);
         }
-
         mJoyStick.destroy();
-
         removeTestProviderNetwork();
         removeTestProviderGPS();
         removeTestProviderFused();
-
         unregisterReceiver(mActReceiver);
         stopForeground(STOP_FOREGROUND_REMOVE);
-
         super.onDestroy();
     }
 
@@ -209,7 +148,6 @@ public class ServiceGo extends Service implements SensorEventListener {
         } else if (event.sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD) {
             mMagValues = event.values;
         }
-
         SensorManager.getRotationMatrix(mR, null, mAccValues, mMagValues);
         SensorManager.getOrientation(mR, mDirectionValues);
         float azimuth = (float) Math.toDegrees(mDirectionValues[0]);
@@ -228,14 +166,11 @@ public class ServiceGo extends Service implements SensorEventListener {
         filter.addAction(SERVICE_GO_NOTE_ACTION_JOYSTICK_SHOW);
         filter.addAction(SERVICE_GO_NOTE_ACTION_JOYSTICK_HIDE);
         ContextCompat.registerReceiver(this, mActReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
-
         NotificationChannel mChannel = new NotificationChannel(SERVICE_GO_NOTE_CHANNEL_ID, SERVICE_GO_NOTE_CHANNEL_NAME, NotificationManager.IMPORTANCE_DEFAULT);
         NotificationManager notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-
         if (notificationManager != null) {
             notificationManager.createNotificationChannel(mChannel);
         }
-
         Intent clickIntent = new Intent(this, MainActivity.class);
         PendingIntent clickPI = PendingIntent.getActivity(this, 1, clickIntent, PendingIntent.FLAG_IMMUTABLE);
         Intent showIntent = new Intent(SERVICE_GO_NOTE_ACTION_JOYSTICK_SHOW);
@@ -244,7 +179,6 @@ public class ServiceGo extends Service implements SensorEventListener {
         Intent hideIntent = new Intent(SERVICE_GO_NOTE_ACTION_JOYSTICK_HIDE);
         hideIntent.setPackage(getPackageName());
         PendingIntent hidePendingPI = PendingIntent.getBroadcast(this, 0, hideIntent, PendingIntent.FLAG_IMMUTABLE);
-
         Notification notification = new NotificationCompat.Builder(this, SERVICE_GO_NOTE_CHANNEL_ID)
                 .setChannelId(SERVICE_GO_NOTE_CHANNEL_ID)
                 .setContentTitle(getResources().getString(R.string.app_name))
@@ -254,7 +188,6 @@ public class ServiceGo extends Service implements SensorEventListener {
                 .addAction(new NotificationCompat.Action(null, getResources().getString(R.string.note_hide), hidePendingPI))
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .build();
-
         startForeground(SERVICE_GO_NOTE_ID, notification);
     }
 
@@ -268,17 +201,13 @@ public class ServiceGo extends Service implements SensorEventListener {
                 mCurLat += disLat / 110.574;
                 mCurBea = (float) angle;
             }
-
             @Override
             public void onPositionInfo(double lng, double lat, double alt) {
-                // 这是高德地图点击返回的 GCJ-02 坐标，存储原始值
-                // GPS Mock 发送时会在 setLocation* 中转为 WGS-84
                 mCurLng = lng;
                 mCurLat = lat;
                 mCurAlt = alt;
             }
         });
-
         android.content.SharedPreferences sp = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this);
         boolean isJoyStickEnabled = sp.getBoolean("setting_joystick_state", false);
         if (isJoyStickEnabled) {
@@ -297,50 +226,28 @@ public class ServiceGo extends Service implements SensorEventListener {
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
-
                 if (!isStop) {
                     doSetLocationGPS();
                     doSetLocationNetwork();
                     doSetLocationFused();
                 }
-
-                // 无论如何都必须继续循环，否则 mock 失效
                 if (!isStop) {
                     sendEmptyMessage(HANDLER_MSG_ID);
                 }
             }
         };
-
         mLocHandler.sendEmptyMessage(HANDLER_MSG_ID);
     }
 
-    // ========== 每个 setLocation 独立 try-catch，确保循环永不停止 ==========
-
     private void doSetLocationGPS() {
-        try {
-            setLocationGPS();
-        } catch (Throwable t) {
-            Log.e(TAG, "setLocationGPS crash", t);
-        }
+        try { setLocationGPS(); } catch (Throwable t) { Log.e(TAG, "GPS err", t); }
     }
-
     private void doSetLocationNetwork() {
-        try {
-            setLocationNetwork();
-        } catch (Throwable t) {
-            Log.e(TAG, "setLocationNetwork crash", t);
-        }
+        try { setLocationNetwork(); } catch (Throwable t) { Log.e(TAG, "NET err", t); }
     }
-
     private void doSetLocationFused() {
-        try {
-            setLocationFused();
-        } catch (Throwable t) {
-            Log.e(TAG, "setLocationFused crash", t);
-        }
+        try { setLocationFused(); } catch (Throwable t) { Log.e(TAG, "FUS err", t); }
     }
-
-    // ========== Test Provider 管理 ==========
 
     private void removeTestProviderGPS() {
         try {
@@ -348,9 +255,7 @@ public class ServiceGo extends Service implements SensorEventListener {
                 mLocManager.setTestProviderEnabled(LocationManager.GPS_PROVIDER, false);
                 mLocManager.removeTestProvider(LocationManager.GPS_PROVIDER);
             }
-        } catch (Exception e) {
-            Log.e(TAG, "removeTestProviderGPS error", e);
-        }
+        } catch (Exception e) { Log.e(TAG, "rmGPS", e); }
     }
 
     @SuppressLint("wrongconstant")
@@ -366,20 +271,14 @@ public class ServiceGo extends Service implements SensorEventListener {
             if (!mLocManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                 mLocManager.setTestProviderEnabled(LocationManager.GPS_PROVIDER, true);
             }
-        } catch (Exception e) {
-            Log.e(TAG, "addTestProviderGPS error", e);
-        }
+        } catch (Exception e) { Log.e(TAG, "addGPS", e); }
     }
 
     private void setLocationGPS() {
         double noiseLat = (mRandom.nextDouble() - 0.5) * 0.00004;
         double noiseLng = (mRandom.nextDouble() - 0.5) * 0.00004;
         double noiseAlt = (mRandom.nextDouble() - 0.5) * 1.0;
-
-        // 高德瓦片是 GCJ-02，osmdroid 返回的坐标也是 GCJ-02
-        // 必须转为 WGS-84 再发送给 GPS Mock，否则目标 APP 会双重偏移
         double[] wgs = gcj02ToWgs84(mCurLng + noiseLng, mCurLat + noiseLat);
-
         Location loc = new Location(LocationManager.GPS_PROVIDER);
         loc.setAccuracy(Criteria.ACCURACY_FINE);
         loc.setAltitude(mCurAlt + noiseAlt);
@@ -392,7 +291,6 @@ public class ServiceGo extends Service implements SensorEventListener {
         Bundle bundle = new Bundle();
         bundle.putInt("satellites", 7);
         loc.setExtras(bundle);
-
         mLocManager.setTestProviderLocation(LocationManager.GPS_PROVIDER, loc);
     }
 
@@ -402,9 +300,7 @@ public class ServiceGo extends Service implements SensorEventListener {
                 mLocManager.setTestProviderEnabled(LocationManager.NETWORK_PROVIDER, false);
                 mLocManager.removeTestProvider(LocationManager.NETWORK_PROVIDER);
             }
-        } catch (Exception e) {
-            Log.e(TAG, "removeTestProviderNetwork error", e);
-        }
+        } catch (Exception e) { Log.e(TAG, "rmNET", e); }
     }
 
     @SuppressLint("wrongconstant")
@@ -422,18 +318,14 @@ public class ServiceGo extends Service implements SensorEventListener {
             if (!mLocManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
                 mLocManager.setTestProviderEnabled(LocationManager.NETWORK_PROVIDER, true);
             }
-        } catch (SecurityException e) {
-            Log.e(TAG, "addTestProviderNetwork error", e);
-        }
+        } catch (SecurityException e) { Log.e(TAG, "addNET", e); }
     }
 
     private void setLocationNetwork() {
         double noiseLat = (mRandom.nextDouble() - 0.5) * 0.00004;
         double noiseLng = (mRandom.nextDouble() - 0.5) * 0.00004;
         double noiseAlt = (mRandom.nextDouble() - 0.5) * 1.0;
-
         double[] wgs = gcj02ToWgs84(mCurLng + noiseLng, mCurLat + noiseLat);
-
         Location loc = new Location(LocationManager.NETWORK_PROVIDER);
         loc.setAccuracy(Criteria.ACCURACY_COARSE);
         loc.setAltitude(mCurAlt + noiseAlt);
@@ -443,7 +335,6 @@ public class ServiceGo extends Service implements SensorEventListener {
         loc.setTime(System.currentTimeMillis());
         loc.setSpeed((float) mSpeed);
         loc.setElapsedRealtimeNanos(SystemClock.elapsedRealtimeNanos());
-
         mLocManager.setTestProviderLocation(LocationManager.NETWORK_PROVIDER, loc);
     }
 
@@ -454,9 +345,7 @@ public class ServiceGo extends Service implements SensorEventListener {
                 mLocManager.setTestProviderEnabled(providerName, false);
                 mLocManager.removeTestProvider(providerName);
             }
-        } catch (Exception e) {
-            Log.e(TAG, "removeTestProviderFused error", e);
-        }
+        } catch (Exception e) { Log.e(TAG, "rmFUS", e); }
     }
 
     @SuppressLint("wrongconstant")
@@ -473,18 +362,14 @@ public class ServiceGo extends Service implements SensorEventListener {
             if (!mLocManager.isProviderEnabled(providerName)) {
                 mLocManager.setTestProviderEnabled(providerName, true);
             }
-        } catch (Exception e) {
-            Log.e(TAG, "addTestProviderFused error", e);
-        }
+        } catch (Exception e) { Log.e(TAG, "addFUS", e); }
     }
 
     private void setLocationFused() {
         double noiseLat = (mRandom.nextDouble() - 0.5) * 0.00004;
         double noiseLng = (mRandom.nextDouble() - 0.5) * 0.00004;
         double noiseAlt = (mRandom.nextDouble() - 0.5) * 1.0;
-
         double[] wgs = gcj02ToWgs84(mCurLng + noiseLng, mCurLat + noiseLat);
-
         Location loc = new Location("fused");
         loc.setAccuracy(Criteria.ACCURACY_FINE);
         loc.setAltitude(mCurAlt + noiseAlt);
@@ -497,19 +382,14 @@ public class ServiceGo extends Service implements SensorEventListener {
         Bundle bundle = new Bundle();
         bundle.putInt("satellites", 7);
         loc.setExtras(bundle);
-
         mLocManager.setTestProviderLocation("fused", loc);
     }
 
     // ========== GCJ-02 → WGS-84 坐标转换 ==========
-    // 高德地图瓦片是 GCJ-02（火星坐标），osmdroid 返回的点击坐标是 GCJ-02
-    // GPS Mock 需要 WGS-84，否则目标 APP 会做 WGS-84→GCJ-02 转换产生双重偏移
-
     private static final double GCJ_A = 6378245.0;
     private static final double GCJ_EE = 0.00669342162296594323;
 
     private static double[] gcj02ToWgs84(double gcjLon, double gcjLat) {
-        // 迭代逼近，5 次迭代后误差 < 0.5 米
         double wgsLon = gcjLon, wgsLat = gcjLat;
         for (int i = 0; i < 5; i++) {
             double[] gcj = wgs84ToGcj02(wgsLon, wgsLat);
@@ -546,8 +426,6 @@ public class ServiceGo extends Service implements SensorEventListener {
         ret += (150.0 * Math.sin(x / 12.0 * Math.PI) + 300.0 * Math.sin(x / 30.0 * Math.PI)) * 2.0 / 3.0;
         return ret;
     }
-
-    // ========== 内部类 ==========
 
     public class NoteActionReceiver extends BroadcastReceiver {
         @Override
