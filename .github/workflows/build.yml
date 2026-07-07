@@ -1,0 +1,43 @@
+name: Build VirtualLocation
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0 ndk;25.2.9519653'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Prepare Artifacts
+        run: |
+          mkdir -p artifacts
+          find app/build/outputs/apk -name "*.apk" -exec cp {} artifacts/ \;
+          ls -R artifacts
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: VirtualLocation-APKs
+          path: artifacts/*.apk
