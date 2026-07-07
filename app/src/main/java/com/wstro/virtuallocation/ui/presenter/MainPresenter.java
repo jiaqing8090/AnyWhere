@@ -74,19 +74,14 @@ public class MainPresenter extends BaseActPresenter<MainView> {
 
     public void installAppList(final List<AppInfo> list){
         Observable.just("")
-                //.observeOn(AndroidSchedulers.mainThread())
-               /* .doOnNext(new Action1<String>() {
-                    @Override
-                    public void call(String s) {
-                        baseActivity.showProgressDialog("安装应用中...");
-                    }
-                })*/
                 .map(new Func1<String, List<AppInfo>>() {
                     @Override
                     public List<AppInfo> call(String s) {
                         List<AppInfo> successList = new ArrayList<>();
 
                         getMvpView().onInstallStart();
+                        // 确保 VA 服务器进程已启动
+                        VirtualCore.get().waitForEngine();
                         for (int i = 0; i < list.size(); i++) {
                             //String path = list.get(i).getApkFilePath();
 

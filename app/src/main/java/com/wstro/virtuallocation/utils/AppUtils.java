@@ -27,9 +27,12 @@ public class AppUtils {
     public static File getSDPath(){
         File sdDir = null;
         boolean sdCardExist = Environment.getExternalStorageState()
-                .equals(android.os.Environment.MEDIA_MOUNTED); //判断sd卡是否存在
+                .equals(android.os.Environment.MEDIA_MOUNTED);
         if (sdCardExist) {
-            sdDir = Environment.getExternalStorageDirectory();//获取跟目录
+            sdDir = Environment.getExternalStorageDirectory();
+        }
+        if (sdDir == null) {
+            sdDir = Environment.getDataDirectory();
         }
         return sdDir;
 

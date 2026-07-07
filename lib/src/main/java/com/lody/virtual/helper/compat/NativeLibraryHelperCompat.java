@@ -92,7 +92,7 @@ public class NativeLibraryHelperCompat {
 		}
 
 		for (String supportedAbi : supportedABIs) {
-			if ("arm64-v8a".endsWith(supportedAbi) || "x86_64".equals(supportedAbi) || "mips64".equals(supportedAbi)) {
+			if ("arm64-v8a".equals(supportedAbi) || "x86_64".equals(supportedAbi) || "mips64".equals(supportedAbi)) {
 				return true;
 			}
 		}

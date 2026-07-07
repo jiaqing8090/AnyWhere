@@ -159,27 +159,32 @@ public class AppListPresenter extends BaseFrgPresenter<AppListView> {
     }
 
     /**
-     * 只遍历第二层
+     * 递归遍历目录查找APK文件
      * @param context
      * @param rootFile
      * @return
      */
     private List<AppInfo> findAndParseAPKs(Context context, File rootFile) {
         List<AppInfo> infoList = new ArrayList<>();
-
-        if(rootFile.isDirectory()){
-            File[] dirFiles = rootFile.listFiles();
-            if (dirFiles == null)
-                return infoList;
-
-            for (File f : dirFiles) {
-                addAppInfo(context,f,infoList);
-            }
-        }else{
-            addAppInfo(context,rootFile,infoList);
-        }
-
+        findAndParseAPKsRecursive(context, rootFile, infoList, 0);
         return infoList;
+    }
+
+    private void findAndParseAPKsRecursive(Context context, File rootFile, List<AppInfo> infoList, int depth) {
+        if (rootFile == null || depth > 5) return;
+        if (rootFile.isDirectory()) {
+            File[] dirFiles = rootFile.listFiles();
+            if (dirFiles == null) return;
+            for (File f : dirFiles) {
+                if (f.isDirectory()) {
+                    findAndParseAPKsRecursive(context, f, infoList, depth + 1);
+                } else {
+                    addAppInfo(context, f, infoList);
+                }
+            }
+        } else {
+            addAppInfo(context, rootFile, infoList);
+        }
     }
 
     private void addAppInfo(Context context,File f,List<AppInfo> list){

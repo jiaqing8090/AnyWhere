@@ -193,7 +193,10 @@ public class VAppManagerService implements IAppManager {
             dependSystem = false;
         }
 
-        NativeLibraryHelperCompat.copyNativeBinaries(new File(path), libDir);
+        int libResult = NativeLibraryHelperCompat.copyNativeBinaries(new File(path), libDir);
+        if (libResult < 0) {
+            VLog.w(TAG, "Failed to copy native libs for %s (ABI mismatch or copy error), continuing...", pkg.packageName);
+        }
         if (!dependSystem) {
             File privatePackageFile = new File(appDir, "base.apk");
             File parentFolder = privatePackageFile.getParentFile();

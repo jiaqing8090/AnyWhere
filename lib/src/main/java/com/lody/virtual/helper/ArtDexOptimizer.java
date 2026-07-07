@@ -32,12 +32,12 @@ public class ArtDexOptimizer {
 
         final List<String> commandAndParams = new ArrayList<>();
         commandAndParams.add("dex2oat");
-        // for 7.1.1, duplicate class fix
+        // for 7.1.1, duplicate class fix - pass empty classpath
         if (Build.VERSION.SDK_INT >= 24) {
             commandAndParams.add("--runtime-arg");
             commandAndParams.add("-classpath");
             commandAndParams.add("--runtime-arg");
-            commandAndParams.add("&");
+            commandAndParams.add("");
         }
         commandAndParams.add("--dex-file=" + dexFilePath);
         commandAndParams.add("--oat-file=" + oatFilePath);
